@@ -1,17 +1,39 @@
-#!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# @Time    : 7/3/19 11:41 AM
-# @Author  : zchai
 import torch
 import torch.autograd as autograd
 import torch.nn as nn
 import torch.optim as optim
+import numpy as np
+
+from bilstm_crf.data.glove import Glove_Embeddings
+from bilstm_crf.data.training_data import get_training_data
+
+torch.manual_seed(1)
+
+#####################################################################
+# Helper functions to make the code more readable.
 
 
-START_TAG = "<START>"
-STOP_TAG = "<STOP>"
-EMBEDDING_DIM = 5
-HIDDEN_DIM = 4
+def argmax(vec):
+    # return the argmax as a python int
+    _, idx = torch.max(vec, 1)
+    return idx.item()
+
+
+def prepare_sequence(seq, to_ix):
+    idxs = [to_ix[w] for w in seq]
+    return torch.tensor(idxs, dtype=torch.long)
+
+
+# Compute log sum exp in a numerically stable way for the forward algorithm
+def log_sum_exp(vec):
+    max_score = vec[0, argmax(vec)]
+    max_score_broadcast = max_score.view(1, -1).expand(1, vec.size()[1])
+    return max_score + \
+        torch.log(torch.sum(torch.exp(vec - max_score_broadcast)))
+
+#####################################################################
+# Create model
 
 
 class BiLSTM_CRF(nn.Module):
@@ -24,7 +46,7 @@ class BiLSTM_CRF(nn.Module):
         self.tag_to_ix = tag_to_ix
         self.tagset_size = len(tag_to_ix)
 
-        self.word_embeds = nn.Embedding(vocab_size, embedding_dim)
+        # self.word_embeds = nn.Embedding(vocab_size, embedding_dim)
         self.lstm = nn.LSTM(embedding_dim, hidden_dim // 2,
                             num_layers=1, bidirectional=True)
 
@@ -80,7 +102,7 @@ class BiLSTM_CRF(nn.Module):
 
     def _get_lstm_features(self, sentence):
         self.hidden = self.init_hidden()
-        embeds = self.word_embeds(sentence).view(len(sentence), 1, -1)
+        # embeds = self.word_embeds(sentence).view(len(sentence), 1, -1)
         lstm_out, self.hidden = self.lstm(embeds, self.hidden)
         lstm_out = lstm_out.view(len(sentence), self.hidden_dim)
         lstm_feats = self.hidden2tag(lstm_out)
@@ -153,3 +175,48 @@ class BiLSTM_CRF(nn.Module):
         # Find the best path, given the features.
         score, tag_seq = self._viterbi_decode(lstm_feats)
         return score, tag_seq
+
+#####################################################################
+# Run training
+
+
+START_TAG = "<START>"
+STOP_TAG = "<STOP>"
+HIDDEN_DIM = 4
+FILE_PREFIX = '/path/bt'
+
+# get embeddings
+glove_embeddings = Glove_Embeddings(FILE_PREFIX)
+glove_embeddings.words_expansion()
+word_embeddings = glove_embeddings.task_embeddings
+word2id = glove_embeddings.task_word2id
+tag2id = glove_embeddings.task_tag2id
+
+# get training data
+training_data = (get_training_data(FILE_PREFIX))
+
+model = BiLSTM_CRF(len(word2id), tag2id, word_embeddings[0].size, HIDDEN_DIM)
+optimizer = optim.SGD(model.parameters(), lr=0.01, weight_decay=1e-4)
+
+# Make sure prepare_sequence from earlier in the LSTM section is loaded
+for epoch in range(300):
+    for sentence, tags in training_data:
+
+        optimizer.zero_grad()
+
+        # Step 2. Get our inputs ready for the network, that is,
+        # turn them into Tensors of word indices.
+        sentence_in = prepare_sequence(sentence, word2id)
+        targets = torch.tensor([tag2id[t] for t in tags], dtype=torch.long)
+
+        # Step 3. Run our forward pass.
+        loss = model.neg_log_likelihood(sentence_in, targets)
+
+        # Step 4. Compute the loss, gradients, and update the parameters by
+        # calling optimizer.step()
+        loss.backward()
+        optimizer.step()
+
+        print('Epoch[{}/{}]'.format(epoch, 300) + 'loss: {:.6f}'.format(
+            loss.item()) )
+
