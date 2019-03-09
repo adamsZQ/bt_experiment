@@ -9,11 +9,20 @@ import sys
 
 sys.path.append(os.path.join(os.getcwd() + '/'))# 新加入的
 
-"""glove doesn't have <unk> token someone calculates the average weight of data as unk"""
-with open ('../data/unk_file', 'r') as u:
-    unk_str = u.read()
-    unk = np.array(unk_str.split())
-    unk = unk.astype(np.float)
+
+START_TAG = "<START>"
+STOP_TAG = "<STOP>"
+PADDING_TAG = "<PAD>"
+UNK_TAG = '<UNK>'
+
+
+def get_unk_token():
+    """glove doesn't have <unk> token someone calculates the average weight of data as unk"""
+    with open('../data/unk_file', 'r') as u:
+        unk_str = u.read()
+        unk = np.array(unk_str.split())
+        unk = unk.astype(np.float)
+    return unk
     # print(unk)
 
 
@@ -40,13 +49,21 @@ class Glove_Embeddings():
             for line in d:
                 data_json = json.loads(line)
                 sentence = data_json['key'].split()
-                tag = data_json['tags']
+                tags = data_json['tags']
                 for voca in sentence:
                     if voca not in task_vocab:
                         task_vocab.append(voca)
-                if tag not in task_tags:
-                    task_tags.append(tag)
+                for tag in tags:
+                    if tag not in task_tags:
+                        task_tags.append(tag)
 
+        # add start, stop, padding and unk
+        task_tags.append(START_TAG)
+        task_tags.append(STOP_TAG)
+        task_tags.append(PADDING_TAG)
+        task_tags.append(UNK_TAG)
+        task_vocab.append(PADDING_TAG)
+        task_vocab.append(UNK_TAG)
         self.task_word2id = {word: idx for idx, word in enumerate(task_vocab)}
         self.task_id2word = {idx: word for idx, word in enumerate(task_vocab)}
         self.task_tag2id = {tag: idx for idx, tag in enumerate(task_tags)}
@@ -62,7 +79,7 @@ class Glove_Embeddings():
             else :
                 """set oov = <unk>  """
                 # print(word)
-                task_embeddings.append(unk)
+                task_embeddings.append(get_unk_token())
 
         self.task_embeddings = task_embeddings
 
