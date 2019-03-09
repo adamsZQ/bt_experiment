@@ -136,12 +136,20 @@ class BiLSTM_CRF(nn.Module):
 
     def _score_sentence(self, feats, tags):
         # Gives the score of a provided tag sequence
+        # TODO add batch
         score = torch.zeros(1)
         # tags = torch.cat([torch.tensor([self.tag_to_ix[START_TAG]], dtype=torch.long), tags])
-        for i, feat in enumerate(feats):
-            score = score + \
-                self.transitions[tags[i + 1], tags[i]] + feat[tags[i + 1]]
-        score = score + self.transitions[self.tag_to_ix[STOP_TAG], tags[-1]]
+
+        """batch """
+        for enu in range(feats.size()[0]):
+            tag_enu = tags[enu]
+            feat_enu = feats[enu]
+            for i, feat in enumerate(feat_enu):
+                print('feat', feat_enu)
+                print('tags', tag_enu)
+                score = score + \
+                    self.transitions[tag_enu[i + 1], tag_enu[i]] + feat_enu[tag_enu[i + 1]]
+            score = score + self.transitions[self.tag_to_ix[STOP_TAG], tag_enu[-1]]
         return score
 
     def _viterbi_decode(self, feats):
