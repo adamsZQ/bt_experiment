@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+import os
+
 import torch
 import torch.autograd as autograd
 import torch.nn as nn
@@ -16,6 +18,29 @@ torch.manual_seed(1)
 
 #####################################################################
 # Helper functions to make the code more readable.
+
+
+def save_model(file_prefix=None, file_name=None, val_loss='None', best_loss='None', enforcement = False):
+    # Save model
+    try:
+        if enforcement or val_loss == 'None' or best_loss == 'None':
+            file_path = '{}{}_{}.pkl'.format(file_prefix, file_name, 'enforcement')
+            torch.save(model, file_path)
+            print('enforcement save:', file_path)
+
+        elif val_loss != 'None' and best_loss != 'None' and ~enforcement:
+            is_best = val_loss < best_loss
+            best_loss = min(best_loss, val_loss)
+            if is_best:
+                file_path = '{}{}_{:.4f}.pkl'.format(file_prefix, file_name, best_loss)
+                torch.save(model, file_path)
+            return best_loss
+    except Exception as e:
+        # if error, save model in default path
+        print(e)
+        file_path = '{}{}.pkl'.format(os.getcwd(), '/default')
+        print('default save:', file_path)
+        torch.save(model, file_path)
 
 
 # sentences - > padded index sequence
@@ -50,7 +75,7 @@ def val(X_val, y_val):
     predict_list = []
     target_list = []
     for sentence, tags in zip(X_val,y_val):
-        sentence = torch.tensor(sentence).long().todevice()
+        sentence = torch.tensor(sentence).long().to(device)
         predict = model(sentence)
         predict_list.append(predict[1])
         target_list.append(tags)
@@ -256,18 +281,20 @@ word_embeds.padding_idx = word2id[PADDING_TAG]
 X_train, X_test, y_train, y_test = train_test_split(sentences_prepared, tag_prepared, test_size=0.2, random_state=0)
 X_val, X_test, y_val, y_test = train_test_split(X_test, y_test, test_size=0.5, random_state=1)
 
-model = BiLSTM_CRF(len(word2id), tag2id, word_embeddings[0].size, HIDDEN_DIM).todevice()
+model = BiLSTM_CRF(len(word2id), tag2id, word_embeddings[0].size, HIDDEN_DIM).to(device)
 optimizer = optim.Adam(model.parameters(), lr=0.01, weight_decay=1e-4)
 
-# Make sure prepare_sequence from earlier in the LSTM section is loaded
 epoch = 10000
+best_loss = 1e-1
+model_prefix = '/path/bt/'
+file_name = 'bilstm_crf'
 for num_epochs in range(epoch):
     # for step, (batch_x, batch_y) in enumerate(loader):
     for sentence, tags in zip(X_train,y_train):
         # Step 3. Run our forward pass.
-        sentence = torch.tensor(sentence).long().todevice()
+        sentence = torch.tensor(sentence).long().to(device)
         # torch.unsqueeze(sentence, 0)
-        tags = torch.tensor(tags).long().todevice()
+        tags = torch.tensor(tags).long().to(device)
 
         loss = model.neg_log_likelihood(sentence, tags)
 
@@ -278,7 +305,7 @@ for num_epochs in range(epoch):
         optimizer.step()
 
         # print(loss.item())
-        if num_epochs % 1 == 0:
+        if num_epochs % 20 == 0:
             accuracy, precision, recall, f1 = val(X_val, y_val)
             print('Epoch[{}/{}]'.format(num_epochs, epoch) + 'loss: {:.6f}'.format(
                 loss.item()) +
@@ -287,6 +314,9 @@ for num_epochs in range(epoch):
                   'recall_score: {:.6f}'.format(recall) +
                   'f1_score: {:.6f}'.format(f1))
 
+            best_loss = save_model(model_prefix, file_name, f1, best_loss)
+
+save_model(model_prefix, file_name, enforcement=True)
 
 
 

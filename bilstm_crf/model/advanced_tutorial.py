@@ -131,6 +131,15 @@ torch.manual_seed(1)
 # Helper functions to make the code more readable.
 
 
+def save_model(val_loss, best_loss, file_prefix, file_name):
+    # Save model
+    is_best = val_loss < best_loss
+    best_loss = min(best_loss, val_loss)
+    if is_best:
+        file_path = '{}{}_{:.4f}.pkl'.format(file_prefix, file_name, best_loss)
+        torch.save(model, file_path)
+    return best_loss, file_path
+
 def argmax(vec):
     # return the argmax as a python int
     _, idx = torch.max(vec, 1)
@@ -166,6 +175,7 @@ def val(X_val, y_val):
     print(precision_score(target_list, predict_list, average="samples"))
     print(recall_score(target_list, predict_list, average="samples"))
 
+    return f1_score(target_list, predict_list, average="samples")
         # print('predict',predict[1])
 #####################################################################
 # Create model
@@ -348,7 +358,7 @@ with torch.no_grad():
 
 # Make sure prepare_sequence from earlier in the LSTM section is loaded
 for epoch in range(
-        300):  # again, normally you would NOT do 300 epochs, it is toy data
+        3):  # again, normally you would NOT do 300 epochs, it is toy data
     for sentence, tags in training_data:
         # Step 1. Remember that Pytorch accumulates gradients.
         # We need to clear them out before each instance
@@ -386,7 +396,17 @@ with torch.no_grad():
         sent_list.append(precheck_sent)
         tag_list.append(precheck_tags)
 
-    val(sent_list, tag_list)
+    # val_loss = val(sent_list, tag_list)
+
+    best_loss = 2
+    best_loss, file_path= save_model(1,best_loss,'/path/bt/', 'test_model')
+
+    model_load = torch.load(file_path)
+
+    precheck_sent = prepare_sequence(training_data[0][0], word_to_ix)
+    print('-safd--------------------', model_load(precheck_sent))
+
+
 # We got it!
 
 
