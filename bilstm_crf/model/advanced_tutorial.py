@@ -115,12 +115,15 @@ to code to be more readable. If you want to make the relevant change,
 you could probably use this tagger for real tasks.
 """
 # Author: Robert Guthrie
+import operator
 
 import torch
 import torch.autograd as autograd
 import torch.nn as nn
 import torch.optim as optim
 import numpy as np
+from sklearn.metrics import f1_score, precision_score, recall_score
+from sklearn.preprocessing import MultiLabelBinarizer
 
 torch.manual_seed(1)
 
@@ -146,6 +149,24 @@ def log_sum_exp(vec):
     return max_score + \
         torch.log(torch.sum(torch.exp(vec - max_score_broadcast)))
 
+
+def val(X_val, y_val):
+    predict_list = []
+    target_list = []
+    for sentence, tags in zip(X_val,y_val):
+        print('nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn')
+        predict = model(sentence)
+        predict_list.append(predict[1])
+        target_list.append(tags.tolist())
+
+    predict_list = MultiLabelBinarizer().fit_transform(predict_list)
+    target_list = MultiLabelBinarizer().fit_transform(target_list)
+
+    print(f1_score(target_list, predict_list, average="samples"))
+    print(precision_score(target_list, predict_list, average="samples"))
+    print(recall_score(target_list, predict_list, average="samples"))
+
+        # print('predict',predict[1])
 #####################################################################
 # Create model
 
@@ -349,7 +370,23 @@ for epoch in range(
 # Check predictions after training
 with torch.no_grad():
     precheck_sent = prepare_sequence(training_data[0][0], word_to_ix)
-    print(model(precheck_sent))
+    precheck_tags = torch.tensor([tag_to_ix[t] for t in training_data[0][1]], dtype=torch.long)
+    predict = model(precheck_sent)
+    print('----------------------------------------------')
+    print(predict, precheck_tags)
+    print('----------------------------------------------')
+
+with torch.no_grad():
+
+    sent_list = []
+    tag_list = []
+    for sentence, tags in training_data:
+        precheck_sent = prepare_sequence(sentence, word_to_ix)
+        precheck_tags = torch.tensor([tag_to_ix[t] for t in tags], dtype=torch.long)
+        sent_list.append(precheck_sent)
+        tag_list.append(precheck_tags)
+
+    val(sent_list, tag_list)
 # We got it!
 
 

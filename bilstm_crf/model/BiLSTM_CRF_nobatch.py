@@ -4,6 +4,8 @@ import torch.autograd as autograd
 import torch.nn as nn
 import torch.optim as optim
 import numpy as np
+from sklearn.metrics import f1_score, precision_score, recall_score, accuracy_score
+from sklearn.preprocessing import MultiLabelBinarizer
 
 from bilstm_crf.data.glove import Glove_Embeddings
 from bilstm_crf.data.training_data import get_training_data
@@ -22,18 +24,7 @@ def prepare_sequence(sentences, word2id):
     for sentence in sentences:
         sentences_idx.append([word2id[w] for w in sentence])
 
-    sent_lengths = [len(sent) for sent in sentences_idx]
-
-    pad_token = word2id[PADDING_TAG]
-    longest_sent = max(sent_lengths)
-    batch_size = len(sentences_idx)
-    padded_sent = np.ones((batch_size, longest_sent)) * pad_token
-
-    for i, sent_len in enumerate(sent_lengths):
-        sequence = sentences_idx[i]
-        padded_sent[i, 0:sent_len] = sequence[:sent_len]
-
-    return padded_sent
+    return sentences_idx
 
 
 def argmax(vec):
@@ -56,8 +47,25 @@ def log_sum_exp(vec):
 
 
 def val(X_val, y_val):
-    val_loss = model.neg_log_likelihood(X_val, y_val)  # 计算loss
-    return val_loss.item()
+    predict_list = []
+    target_list = []
+    for sentence, tags in zip(X_val,y_val):
+        sentence = torch.tensor(sentence).long().todevice()
+        predict = model(sentence)
+        predict_list.append(predict[1])
+        target_list.append(tags)
+
+    binarizer = MultiLabelBinarizer()
+    target_list = binarizer.fit_transform(target_list)
+    predict_list = binarizer.transform(predict_list)
+
+    accuracy = accuracy_score(target_list, predict_list)
+    f1 = f1_score(target_list, predict_list, average="samples")
+    precision = precision_score(target_list, predict_list, average="samples")
+    recall = recall_score(target_list, predict_list, average="samples")
+
+    return accuracy, precision, recall, f1
+
 #####################################################################
 # Create model
 
@@ -124,33 +132,28 @@ class BiLSTM_CRF(nn.Module):
             forward_var = torch.cat(alphas_t).view(1, -1)
         terminal_var = forward_var + self.transitions[self.tag_to_ix[STOP_TAG]]
         alpha = log_sum_exp(terminal_var)
-        print('alpha',alpha)
+        # print('alpha',alpha)
         return alpha
 
     def _get_lstm_features(self, sentence):
         self.hidden = self.init_hidden()
-        embeds = word_embeds(sentence).float()
+        embeds = word_embeds(sentence).float().view(1, len(sentence), -1)
+        # torch.unsqueeze(embeds,0)
         lstm_out, self.hidden = self.lstm(embeds)
-        # lstm_out = lstm_out.view(len(sentence), self.hidden_dim)
+        lstm_out = lstm_out.view(len(sentence), self.hidden_dim)
         lstm_feats = self.hidden2tag(lstm_out)
-        print('lstm-feats',lstm_feats)
+        # print('lstm-feats',lstm_feats)
         return lstm_feats
 
     def _score_sentence(self, feats, tags):
         # Gives the score of a provided tag sequence
         # TODO add batch
         score = torch.zeros(1)
-        # tags = torch.cat([torch.tensor([self.tag_to_ix[START_TAG]], dtype=torch.long), tags])
-
-        """batch """
-        # for enu in range(feats.size()[0]):
-        #     tag_enu = tags[enu]
-        #     feat_enu = feats[enu]
+        tags = torch.cat([torch.tensor([self.tag_to_ix[START_TAG]], dtype=torch.long), tags])
         for i, feat in enumerate(feats):
-            print('feat', feats)
-            print('tags', tags)
+
             score = score + \
-                self.transitions[tags[i + 1], tags[i]] + feats[tags[i + 1]]
+                self.transitions[tags[i + 1], tags[i]] + feat[tags[i + 1]]
         score = score + self.transitions[self.tag_to_ix[STOP_TAG], tags[-1]]
         return score
 
@@ -201,7 +204,7 @@ class BiLSTM_CRF(nn.Module):
     def neg_log_likelihood(self, sentence, tags):
         feats = self._get_lstm_features(sentence)
         forward_score = self._forward_alg(feats)
-        print(forward_score)
+        # print(forward_score)
         gold_score = self._score_sentence(feats, tags)
         return forward_score - gold_score
 
@@ -224,6 +227,13 @@ UNK_TAG = '<UNK>'
 HIDDEN_DIM = 4
 FILE_PREFIX = '/path/bt'
 
+if torch.cuda.is_available():
+    print('using cuda')
+    device = torch.device('cuda')
+else:
+    print('using cpu')
+    device = torch.device('cpu')
+
 # get word embeddings
 glove_embeddings = Glove_Embeddings(FILE_PREFIX)
 glove_embeddings.words_expansion()
@@ -235,38 +245,31 @@ tag2id = glove_embeddings.task_tag2id
 sentences_data, tag_data = (get_training_data(FILE_PREFIX))
 
 # sentence data -> index
-sentences_padded = prepare_sequence(sentences_data, word2id)
-tag_padded = prepare_sequence(tag_data, tag2id)
+sentences_prepared = prepare_sequence(sentences_data, word2id)
+tag_prepared = prepare_sequence(tag_data, tag2id)
 
 # initialize embedding
 word_embeds = nn.Embedding.from_pretrained(torch.from_numpy(np.array(word_embeddings)))
 word_embeds.padding_idx = word2id[PADDING_TAG]
 
 # split train val test
-X_train, X_test, y_train, y_test = train_test_split(sentences_padded, tag_padded, test_size=0.2, random_state=0)
+X_train, X_test, y_train, y_test = train_test_split(sentences_prepared, tag_prepared, test_size=0.2, random_state=0)
 X_val, X_test, y_val, y_test = train_test_split(X_test, y_test, test_size=0.5, random_state=1)
-X_train = torch.from_numpy(X_train).long()
-X_test = torch.from_numpy(X_test).long()
-X_val = torch.from_numpy(X_val).long()
-y_train = torch.from_numpy(y_train).long()
-y_test = torch.from_numpy(y_test).long()
-y_val = torch.from_numpy(y_val).long()
 
-# dataloader
-batch_size = 1
-torch_dataset = Data.TensorDataset(X_train, y_train)
-loader = Data.DataLoader(dataset=torch_dataset, batch_size=batch_size, shuffle=True)
-
-model = BiLSTM_CRF(len(word2id), tag2id, word_embeddings[0].size, HIDDEN_DIM)
+model = BiLSTM_CRF(len(word2id), tag2id, word_embeddings[0].size, HIDDEN_DIM).todevice()
 optimizer = optim.Adam(model.parameters(), lr=0.01, weight_decay=1e-4)
 
 # Make sure prepare_sequence from earlier in the LSTM section is loaded
 epoch = 10000
 for num_epochs in range(epoch):
-    for step, (batch_x, batch_y) in enumerate(loader):
-
+    # for step, (batch_x, batch_y) in enumerate(loader):
+    for sentence, tags in zip(X_train,y_train):
         # Step 3. Run our forward pass.
-        loss = model.neg_log_likelihood(batch_x, batch_y)
+        sentence = torch.tensor(sentence).long().todevice()
+        # torch.unsqueeze(sentence, 0)
+        tags = torch.tensor(tags).long().todevice()
+
+        loss = model.neg_log_likelihood(sentence, tags)
 
         # Step 4. Compute the loss, gradients, and update the parameters by
         # calling optimizer.step()
@@ -275,16 +278,15 @@ for num_epochs in range(epoch):
         optimizer.step()
 
         # print(loss.item())
-        if num_epochs % 20 == 0:
-            val_loss = val(X_val, y_val)
+        if num_epochs % 1 == 0:
+            accuracy, precision, recall, f1 = val(X_val, y_val)
             print('Epoch[{}/{}]'.format(num_epochs, epoch) + 'loss: {:.6f}'.format(
-                loss.item()) + 'validation loss: {:.6f}'.format(val_loss))
-            # print()
+                loss.item()) +
+                  'accuracy_score: {:.6f}'.format(accuracy) +
+                  'precision_score: {:.6f}'.format(precision) +
+                  'recall_score: {:.6f}'.format(recall) +
+                  'f1_score: {:.6f}'.format(f1))
 
-            # if val_loss < minimum:
-            #     print('successssssssssssssssssssssssssssssss')
-            #     joblib.dump(belief_tracker, 'model/model_tracker_v2_' + str(val_loss) + '.m')
-            #     return
 
 
 
