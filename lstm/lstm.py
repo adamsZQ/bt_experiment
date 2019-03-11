@@ -43,7 +43,7 @@ class FacetTracker(nn.Module):
         lstm_out = lstm_out.view(len(sentence), self.hidden_size)
         lstm_feats = self.out(lstm_out)
         lstm_sofmax = self.softmax(lstm_feats)
-        return lstm_sofmax
+        return lstm_feats, lstm_sofmax
 
 
 def save_model(model, file_prefix=None, file_name=None, val_loss='None', best_loss='None', enforcement = False):
@@ -74,8 +74,8 @@ def val(model, word_embeds, device, X_val, y_val):
     target_list = []
     for sentence, tags in zip(X_val,y_val):
         sentence = torch.tensor(sentence).long().to(device)
-        predict = model(word_embeds, sentence)
-        predict = torch.argmax(predict, dim=1)
+        lstm_feats, lstm_sofmax = model(word_embeds, sentence)
+        predict = torch.argmax(lstm_sofmax, dim=1)
         predict_list.append(predict.tolist())
         target_list.append(tags)
 
@@ -124,9 +124,9 @@ def lstm_train(word2id,
             # torch.unsqueeze(sentence, 0)
             tags = torch.tensor(tags).long().to(device)
 
-            predict = model(word_embeds, sentence)
+            lstm_feats, lstm_sofmax = model(word_embeds, sentence)
             # cross entropy already has softmax
-            loss = criterion(predict, tags)
+            loss = criterion(lstm_feats, tags)
 
             # Step 4. Compute the loss, gradients, and update the parameters by
             # calling optimizer.step()
