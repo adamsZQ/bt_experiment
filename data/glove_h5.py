@@ -81,4 +81,6 @@ if __name__ == '__main__':
     HIDDEN_DIM = 4
     FILE_PREFIX = args.prefix
 
+    if FILE_PREFIX is None:
+        FILE_PREFIX = '/path/to/models/'
     glove_h5(FILE_PREFIX)

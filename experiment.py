@@ -7,6 +7,7 @@ from torch import nn
 from bilstm_crf.BiLSTM_CRF_nobatch import prepare_sequence, bilstm_train
 from data.glove import Glove_Embeddings
 from data.training_data import get_training_data
+from lstm.lstm import lstm_train
 
 if __name__ == '__main__':
     # add parser to get prefix
@@ -26,6 +27,12 @@ if __name__ == '__main__':
         print('using cpu')
         device = torch.device('cpu')
 
+    # # TODO test
+    # if FILE_PREFIX is None:
+    #     FILE_PREFIX = '/path/bt'
+    # if model_type is None:
+    #     model_type = 'lstm'
+
     # get word embeddings
     glove_embeddings = Glove_Embeddings(FILE_PREFIX)
     glove_embeddings.words_expansion()
@@ -44,7 +51,14 @@ if __name__ == '__main__':
     word_embeds = nn.Embedding.from_pretrained(torch.from_numpy(np.array(word_embeddings)))
 
     if model_type == 'lstm':
-        pass
+        lstm_train(word2id,
+                     tag2id,
+                     word_embeddings,
+                     word_embeds,
+                     device,
+                     FILE_PREFIX,
+                     sentences_prepared,
+                     tag_prepared, )
     elif model_type == 'bilstm':
         bilstm_train(word2id,
               tag2id,

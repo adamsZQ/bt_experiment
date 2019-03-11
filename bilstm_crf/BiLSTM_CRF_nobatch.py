@@ -7,6 +7,7 @@ import torch.autograd as autograd
 import torch.nn as nn
 import torch.optim as optim
 import numpy as np
+import visdom
 from sklearn.metrics import f1_score, precision_score, recall_score, accuracy_score
 from sklearn.preprocessing import MultiLabelBinarizer
 from sklearn.model_selection import train_test_split
@@ -81,7 +82,8 @@ def val(model, word_embeds, device, X_val, y_val):
         target_list.append(tags)
 
     binarizer = MultiLabelBinarizer()
-    target_list = binarizer.fit_transform(target_list)
+    binarizer.fit_transform([[x for x in range(model.tagset_size)]])
+    target_list = binarizer.transform(target_list)
     predict_list = binarizer.transform(predict_list)
 
     accuracy = accuracy_score(target_list, predict_list)
@@ -172,7 +174,6 @@ class BiLSTM_CRF(nn.Module):
 
     def _score_sentence(self, feats, tags):
         # Gives the score of a provided tag sequence
-        # TODO add batch
         score = torch.zeros(1)
         tags = torch.cat([torch.tensor([self.tag_to_ix[START_TAG]], dtype=torch.long), tags])
         for i, feat in enumerate(feats):
@@ -261,17 +262,19 @@ def bilstm_train(word2id,
           HIDDEN_DIM=4,):
 
     model = BiLSTM_CRF(len(word2id), tag2id, word_embeddings[0].size, HIDDEN_DIM).to(device)
-    optimizer = optim.Adam(model.parameters(), lr=0.01, weight_decay=1e-4)
+    optimizer = optim.Adam(model.parameters(), lr=0.01)
 
-    X_train, X_test, y_train, y_test = train_test_split(sentences_prepared, tag_prepared, test_size=0.2, random_state=0)
+    X_train, X_test, y_train, y_test = train_test_split(sentences_prepared, tag_prepared, test_size=0.2, random_state=0, shuffle=True)
     X_val, X_test, y_val, y_test = train_test_split(X_test, y_test, test_size=0.5, random_state=1)
+
+    viz = visdom.Visdom()
+    win = viz.scatter(X=np.asarray([[0,0]]))
 
     epoch = 1000
     best_loss = 1e-1
     model_prefix = model_prefix
     file_name = 'bilstm_crf'
     for num_epochs in range(epoch):
-        # for step, (batch_x, batch_y) in enumerate(loader):
         for sentence, tags in zip(X_train, y_train):
             # Step 3. Run our forward pass.
             sentence = torch.tensor(sentence).long().to(device)
@@ -287,16 +290,28 @@ def bilstm_train(word2id,
             optimizer.step()
 
             # print(loss.item())
-            if num_epochs % 20 == 0:
-                accuracy, precision, recall, f1 = val(model, word_embeds, device, X_val, y_val)
-                print('Epoch[{}/{}]'.format(num_epochs, epoch) + 'loss: {:.6f}'.format(
-                    loss.item()) +
-                      'accuracy_score: {:.6f}'.format(accuracy) +
-                      'precision_score: {:.6f}'.format(precision) +
-                      'recall_score: {:.6f}'.format(recall) +
-                      'f1_score: {:.6f}'.format(f1))
+        if num_epochs % 1 == 0:
+            accuracy, precision, recall, f1 = val(model, word_embeds, device, X_val, y_val)
 
-                best_loss = save_model(model, model_prefix, file_name, 1 - f1, best_loss)
+            # draw loss line
+            viz.scatter(X=np.array([[num_epochs, loss.tolist()]]),
+                        name='train',
+                        win=win,
+                        update='append')
+
+            viz.scatter(X=np.array([[num_epochs, f1]]),
+                        name='validate',
+                        win=win,
+                        update='append')
+
+            print('Epoch[{}/{}]'.format(num_epochs, epoch) + 'loss: {:.6f}'.format(
+                loss.item()) +
+                  'accuracy_score: {:.6f}'.format(accuracy) +
+                  'precision_score: {:.6f}'.format(precision) +
+                  'recall_score: {:.6f}'.format(recall) +
+                  'f1_score: {:.6f}'.format(f1))
+
+            best_loss = save_model(model, model_prefix, file_name, 1 - f1, best_loss)
 
     save_model(model_prefix, file_name, enforcement=True)
 
