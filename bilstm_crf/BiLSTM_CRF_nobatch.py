@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import argparse
 import os
 
 import torch
@@ -9,10 +10,12 @@ import numpy as np
 from sklearn.metrics import f1_score, precision_score, recall_score, accuracy_score
 from sklearn.preprocessing import MultiLabelBinarizer
 
-from bilstm_crf.data.glove import Glove_Embeddings
-from bilstm_crf.data.training_data import get_training_data
+from data.glove import Glove_Embeddings
+from data.training_data import get_training_data
 from sklearn.model_selection import train_test_split
-import torch.utils.data as Data
+import sys
+sys.path.append('..')
+sys.path.append(os.path.join(os.getcwd() + '/'))
 
 torch.manual_seed(1)
 
@@ -245,12 +248,17 @@ class BiLSTM_CRF(nn.Module):
 # Run training
 
 
+# add parser to get prefix
+parser = argparse.ArgumentParser()
+parser.add_argument("--prefix")
+args = parser.parse_args()
+
 START_TAG = "<START>"
 STOP_TAG = "<STOP>"
 PADDING_TAG = "<PAD>"
 UNK_TAG = '<UNK>'
 HIDDEN_DIM = 4
-FILE_PREFIX = '/path/bt'
+FILE_PREFIX = args.prefix
 
 if torch.cuda.is_available():
     print('using cuda')
@@ -286,7 +294,7 @@ optimizer = optim.Adam(model.parameters(), lr=0.01, weight_decay=1e-4)
 
 epoch = 10000
 best_loss = 1e-1
-model_prefix = '/path/bt/'
+model_prefix = args.prefix
 file_name = 'bilstm_crf'
 for num_epochs in range(epoch):
     # for step, (batch_x, batch_y) in enumerate(loader):
@@ -314,7 +322,7 @@ for num_epochs in range(epoch):
                   'recall_score: {:.6f}'.format(recall) +
                   'f1_score: {:.6f}'.format(f1))
 
-            best_loss = save_model(model_prefix, file_name, f1, best_loss)
+            best_loss = save_model(model_prefix, file_name, 1 - f1, best_loss)
 
 save_model(model_prefix, file_name, enforcement=True)
 

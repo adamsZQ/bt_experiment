@@ -5,10 +5,6 @@ import numpy as np
 
 import h5py as h5py
 
-import sys
-
-sys.path.append(os.path.join(os.getcwd() + '/'))# 新加入的
-
 
 START_TAG = "<START>"
 STOP_TAG = "<STOP>"
@@ -18,7 +14,7 @@ UNK_TAG = '<UNK>'
 
 def get_unk_token():
     """glove doesn't have <unk> token someone calculates the average weight of data as unk"""
-    with open('../data/unk_file', 'r') as u:
+    with open('data/unk_file', 'r') as u:
         unk_str = u.read()
         unk = np.array(unk_str.split())
         unk = unk.astype(np.float)
