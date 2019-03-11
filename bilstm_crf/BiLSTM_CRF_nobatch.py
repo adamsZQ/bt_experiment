@@ -9,9 +9,6 @@ import torch.optim as optim
 import numpy as np
 from sklearn.metrics import f1_score, precision_score, recall_score, accuracy_score
 from sklearn.preprocessing import MultiLabelBinarizer
-
-from data.glove import Glove_Embeddings
-from data.training_data import get_training_data
 from sklearn.model_selection import train_test_split
 import sys
 sys.path.append('..')
@@ -23,7 +20,7 @@ torch.manual_seed(1)
 # Helper functions to make the code more readable.
 
 
-def save_model(file_prefix=None, file_name=None, val_loss='None', best_loss='None', enforcement = False):
+def save_model(model, file_prefix=None, file_name=None, val_loss='None', best_loss='None', enforcement = False):
     # Save model
     try:
         if enforcement or val_loss == 'None' or best_loss == 'None':
@@ -74,12 +71,12 @@ def log_sum_exp(vec):
         torch.log(torch.sum(torch.exp(vec - max_score_broadcast)))
 
 
-def val(X_val, y_val):
+def val(model, word_embeds, device, X_val, y_val):
     predict_list = []
     target_list = []
     for sentence, tags in zip(X_val,y_val):
         sentence = torch.tensor(sentence).long().to(device)
-        predict = model(sentence)
+        predict = model(word_embeds, sentence)
         predict_list.append(predict[1])
         target_list.append(tags)
 
@@ -163,7 +160,7 @@ class BiLSTM_CRF(nn.Module):
         # print('alpha',alpha)
         return alpha
 
-    def _get_lstm_features(self, sentence):
+    def _get_lstm_features(self, word_embeds, sentence):
         self.hidden = self.init_hidden()
         embeds = word_embeds(sentence).float().view(1, len(sentence), -1)
         # torch.unsqueeze(embeds,0)
@@ -229,102 +226,79 @@ class BiLSTM_CRF(nn.Module):
         best_path.reverse()
         return path_score, best_path
 
-    def neg_log_likelihood(self, sentence, tags):
-        feats = self._get_lstm_features(sentence)
+    def neg_log_likelihood(self, word_embeds, sentence, tags):
+        feats = self._get_lstm_features(word_embeds, sentence)
         forward_score = self._forward_alg(feats)
         # print(forward_score)
         gold_score = self._score_sentence(feats, tags)
         return forward_score - gold_score
 
-    def forward(self, sentence):  # dont confuse this with _forward_alg above.
+    def forward(self, word_embeds, sentence):  # dont confuse this with _forward_alg above.
         # Get the emission scores from the BiLSTM
-        lstm_feats = self._get_lstm_features(sentence)
+        lstm_feats = self._get_lstm_features(word_embeds, sentence)
 
         # Find the best path, given the features.
         score, tag_seq = self._viterbi_decode(lstm_feats)
         return score, tag_seq
 
-#####################################################################
-# Run training
-
-
-# add parser to get prefix
-parser = argparse.ArgumentParser()
-parser.add_argument("--prefix")
-args = parser.parse_args()
 
 START_TAG = "<START>"
 STOP_TAG = "<STOP>"
 PADDING_TAG = "<PAD>"
 UNK_TAG = '<UNK>'
-HIDDEN_DIM = 4
-FILE_PREFIX = args.prefix
 
-if torch.cuda.is_available():
-    print('using cuda')
-    device = torch.device('cuda')
-else:
-    print('using cpu')
-    device = torch.device('cpu')
 
-# get word embeddings
-glove_embeddings = Glove_Embeddings(FILE_PREFIX)
-glove_embeddings.words_expansion()
-word_embeddings = glove_embeddings.task_embeddings
-word2id = glove_embeddings.task_word2id
-tag2id = glove_embeddings.task_tag2id
+#####################################################################
+# Run training
+def bilstm_train(word2id,
+          tag2id,
+          word_embeddings,
+          word_embeds,
+          device,
+          model_prefix,
+          sentences_prepared,
+          tag_prepared,
+          HIDDEN_DIM=4,):
 
-# get training data
-sentences_data, tag_data = (get_training_data(FILE_PREFIX))
+    model = BiLSTM_CRF(len(word2id), tag2id, word_embeddings[0].size, HIDDEN_DIM).to(device)
+    optimizer = optim.Adam(model.parameters(), lr=0.01, weight_decay=1e-4)
 
-# sentence data -> index
-sentences_prepared = prepare_sequence(sentences_data, word2id)
-tag_prepared = prepare_sequence(tag_data, tag2id)
+    X_train, X_test, y_train, y_test = train_test_split(sentences_prepared, tag_prepared, test_size=0.2, random_state=0)
+    X_val, X_test, y_val, y_test = train_test_split(X_test, y_test, test_size=0.5, random_state=1)
 
-# initialize embedding
-word_embeds = nn.Embedding.from_pretrained(torch.from_numpy(np.array(word_embeddings)))
-word_embeds.padding_idx = word2id[PADDING_TAG]
+    epoch = 1000
+    best_loss = 1e-1
+    model_prefix = model_prefix
+    file_name = 'bilstm_crf'
+    for num_epochs in range(epoch):
+        # for step, (batch_x, batch_y) in enumerate(loader):
+        for sentence, tags in zip(X_train, y_train):
+            # Step 3. Run our forward pass.
+            sentence = torch.tensor(sentence).long().to(device)
+            # torch.unsqueeze(sentence, 0)
+            tags = torch.tensor(tags).long().to(device)
 
-# split train val test
-X_train, X_test, y_train, y_test = train_test_split(sentences_prepared, tag_prepared, test_size=0.2, random_state=0)
-X_val, X_test, y_val, y_test = train_test_split(X_test, y_test, test_size=0.5, random_state=1)
+            loss = model.neg_log_likelihood(word_embeds, sentence, tags)
 
-model = BiLSTM_CRF(len(word2id), tag2id, word_embeddings[0].size, HIDDEN_DIM).to(device)
-optimizer = optim.Adam(model.parameters(), lr=0.01, weight_decay=1e-4)
+            # Step 4. Compute the loss, gradients, and update the parameters by
+            # calling optimizer.step()
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
 
-epoch = 10000
-best_loss = 1e-1
-model_prefix = args.prefix
-file_name = 'bilstm_crf'
-for num_epochs in range(epoch):
-    # for step, (batch_x, batch_y) in enumerate(loader):
-    for sentence, tags in zip(X_train,y_train):
-        # Step 3. Run our forward pass.
-        sentence = torch.tensor(sentence).long().to(device)
-        # torch.unsqueeze(sentence, 0)
-        tags = torch.tensor(tags).long().to(device)
+            # print(loss.item())
+            if num_epochs % 20 == 0:
+                accuracy, precision, recall, f1 = val(model, word_embeds, device, X_val, y_val)
+                print('Epoch[{}/{}]'.format(num_epochs, epoch) + 'loss: {:.6f}'.format(
+                    loss.item()) +
+                      'accuracy_score: {:.6f}'.format(accuracy) +
+                      'precision_score: {:.6f}'.format(precision) +
+                      'recall_score: {:.6f}'.format(recall) +
+                      'f1_score: {:.6f}'.format(f1))
 
-        loss = model.neg_log_likelihood(sentence, tags)
+                best_loss = save_model(model, model_prefix, file_name, 1 - f1, best_loss)
 
-        # Step 4. Compute the loss, gradients, and update the parameters by
-        # calling optimizer.step()
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-
-        # print(loss.item())
-        if num_epochs % 20 == 0:
-            accuracy, precision, recall, f1 = val(X_val, y_val)
-            print('Epoch[{}/{}]'.format(num_epochs, epoch) + 'loss: {:.6f}'.format(
-                loss.item()) +
-                  'accuracy_score: {:.6f}'.format(accuracy) +
-                  'precision_score: {:.6f}'.format(precision) +
-                  'recall_score: {:.6f}'.format(recall) +
-                  'f1_score: {:.6f}'.format(f1))
-
-            best_loss = save_model(model_prefix, file_name, 1 - f1, best_loss)
-
-save_model(model_prefix, file_name, enforcement=True)
+    save_model(model_prefix, file_name, enforcement=True)
 
 
 

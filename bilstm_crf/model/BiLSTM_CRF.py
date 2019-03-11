@@ -1,12 +1,11 @@
 # -*- coding: utf-8 -*-
 import torch
-import torch.autograd as autograd
 import torch.nn as nn
 import torch.optim as optim
 import numpy as np
 
-from bilstm_crf.data.glove import Glove_Embeddings
-from bilstm_crf.data.training_data import get_training_data
+from data.glove import Glove_Embeddings
+from data.training_data import get_training_data
 from sklearn.model_selection import train_test_split
 import torch.utils.data as Data
 
