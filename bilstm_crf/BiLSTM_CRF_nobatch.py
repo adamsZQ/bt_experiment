@@ -257,7 +257,8 @@ def bilstm_train(word2id,
     optimizer = optim.Adam(model.parameters(), lr=0.01, weight_decay=1e-4)
     word_embeds = word_embeds.to(device)
 
-    X_train, X_test, y_train, y_test = train_test_split(sentences_prepared, tag_prepared, test_size=0.2, random_state=0, shuffle=True)
+    X_train, X_test, y_train, y_test = train_test_split(sentences_prepared, tag_prepared, test_size=0.5, random_state=0, shuffle=True)
+    X_train, X_test, y_train, y_test = train_test_split(X_train, y_train, test_size=0.2, random_state=0, shuffle=True)
     X_val, X_test, y_val, y_test = train_test_split(X_test, y_test, test_size=0.5, random_state=1)
 
     viz = visdom.Visdom()
@@ -268,12 +269,12 @@ def bilstm_train(word2id,
     model_prefix = model_prefix
     file_name = 'bilstm_crf'
     for num_epochs in range(epoch):
-        step = 0
+        # step = 0
         for sentence, tags in zip(X_train, y_train):
-            print(step)
-            step = step + 1
+            # print(step)
+            # step = step + 1
             # Step 3. Run our forward pass.
-            sentence = torch.tensor(sentence).long().to(device)
+            sentence = torch.tensor(sentence).long()
             # torch.unsqueeze(sentence, 0)
             tags = torch.tensor(tags).long().to(device)
             # with torch.autograd.profiler.profile() as prof:
