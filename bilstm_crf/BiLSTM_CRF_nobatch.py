@@ -218,11 +218,10 @@ class BiLSTM_CRF(nn.Module):
         return path_score, best_path
 
     def neg_log_likelihood(self, word_embeds, sentence, tags):
-        with torch.autograd.profiler.profile(use_cuda=True) as prof:
-            feats = self._get_lstm_features(word_embeds, sentence)
-            forward_score = self._forward_alg(feats)
-            gold_score = self._score_sentence(feats, tags)
-        print(prof)
+        feats = self._get_lstm_features(word_embeds, sentence)
+        forward_score = self._forward_alg(feats)
+        gold_score = self._score_sentence(feats, tags)
+        #print(prof)
         return forward_score - gold_score
 
     def forward(self, word_embeds, sentence):  # dont confuse this with _forward_alg above.
@@ -277,14 +276,15 @@ def bilstm_train(word2id,
             sentence = torch.tensor(sentence).long().to(device)
             # torch.unsqueeze(sentence, 0)
             tags = torch.tensor(tags).long().to(device)
+            with torch.autograd.profiler.profile(use_cuda=True) as prof:
 
-            loss = model.neg_log_likelihood(word_embeds, sentence, tags)
+                loss = model.neg_log_likelihood(word_embeds, sentence, tags)
 
-            # Step 4. Compute the loss, gradients, and update the parameters by
-            # calling optimizer.step()
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
+                optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
+
+            print(prof)
 
             # print(loss.item())
         if num_epochs % 1 == 0:
