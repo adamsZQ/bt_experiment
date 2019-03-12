@@ -254,7 +254,7 @@ def bilstm_train(word2id,
     global device_enable
     device_enable = device
     model = BiLSTM_CRF(len(word2id), tag2id, word_embeddings[0].size, HIDDEN_DIM).to(device)
-    optimizer = optim.Adam(model.parameters(), lr=0.01)
+    optimizer = optim.Adam(model.parameters(), lr=0.01, weight_decay=1e-4)
     word_embeds = word_embeds.to(device)
 
     X_train, X_test, y_train, y_test = train_test_split(sentences_prepared, tag_prepared, test_size=0.2, random_state=0, shuffle=True)
@@ -276,15 +276,15 @@ def bilstm_train(word2id,
             sentence = torch.tensor(sentence).long().to(device)
             # torch.unsqueeze(sentence, 0)
             tags = torch.tensor(tags).long().to(device)
-            with torch.autograd.profiler.profile(use_cuda=True) as prof:
+            # with torch.autograd.profiler.profile() as prof:
 
-                loss = model.neg_log_likelihood(word_embeds, sentence, tags)
+            loss = model.neg_log_likelihood(word_embeds, sentence, tags)
 
-                optimizer.zero_grad()
-                loss.backward()
-                optimizer.step()
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
 
-            print(prof)
+            #print(prof)
 
             # print(loss.item())
         if num_epochs % 1 == 0:
