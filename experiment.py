@@ -46,6 +46,10 @@ if __name__ == '__main__':
     FILE_PREFIX = args.prefix
     model_type = args.model
     boundary_tags = args.boundary_tags
+    if boundary_tags is "True":
+        boundary_tags = True
+    else:
+        boundary_tags = False
 
     if torch.cuda.is_available():
         print('using cuda')
