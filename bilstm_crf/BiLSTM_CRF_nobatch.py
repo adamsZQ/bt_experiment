@@ -218,7 +218,7 @@ class BiLSTM_CRF(nn.Module):
         return path_score, best_path
 
     def neg_log_likelihood(self, word_embeds, sentence, tags):
-        with torch.autograd.profiler.profile() as prof:
+        with torch.autograd.profiler.profile(use_cuda=True) as prof:
             feats = self._get_lstm_features(word_embeds, sentence)
             forward_score = self._forward_alg(feats)
             gold_score = self._score_sentence(feats, tags)
