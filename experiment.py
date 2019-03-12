@@ -62,9 +62,9 @@ if __name__ == '__main__':
     if FILE_PREFIX is None:
         FILE_PREFIX = '/path/bt'
     if model_type is None:
-        model_type = 'lstm'
+        model_type = 'bilstm'
     if boundary_tags is None:
-        boundary_tags = True
+        boundary_tags = False
 
     # get word embeddings
     glove_embeddings = Glove_Embeddings(FILE_PREFIX)
