@@ -56,9 +56,11 @@ class Glove_Embeddings():
         # add start, stop, padding and unk
         task_tags.append(START_TAG)
         task_tags.append(STOP_TAG)
-        task_tags.append(PADDING_TAG)
+        # task_tags.append(PADDING_TAG)
         task_tags.append(UNK_TAG)
-        task_vocab.append(PADDING_TAG)
+        task_vocab.append(START_TAG)
+        task_vocab.append(STOP_TAG)
+        # task_vocab.append(PADDING_TAG)
         task_vocab.append(UNK_TAG)
         self.task_word2id = {word: idx for idx, word in enumerate(task_vocab)}
         self.task_id2word = {idx: word for idx, word in enumerate(task_vocab)}
@@ -72,6 +74,11 @@ class Glove_Embeddings():
         for word in task_vocab:
             if word in words_flatten:
                 task_embeddings.append(embeddings[words_flatten.index(word)])
+            elif word is START_TAG:
+                # print('start', )
+                task_embeddings.append(np.random.rand(len(embeddings[0])))
+            elif word is STOP_TAG:
+                task_embeddings.append(np.random.rand(len(embeddings[0])))
             else :
                 """set oov = <unk>  """
                 # print(word)

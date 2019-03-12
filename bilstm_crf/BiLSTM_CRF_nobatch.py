@@ -43,16 +43,6 @@ def save_model(model, file_prefix=None, file_name=None, val_loss='None', best_lo
         print('default save:', file_path)
         torch.save(model, file_path)
 
-
-# sentences - > padded index sequence
-def prepare_sequence(sentences, word2id):
-    sentences_idx = []
-    for sentence in sentences:
-        sentences_idx.append([word2id[w] for w in sentence])
-
-    return sentences_idx
-
-
 def argmax(vec):
     # return the argmax as a python int
     _, idx = torch.max(vec, 1)
