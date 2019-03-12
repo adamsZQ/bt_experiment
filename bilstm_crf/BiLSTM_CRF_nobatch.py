@@ -268,7 +268,10 @@ def bilstm_train(word2id,
     model_prefix = model_prefix
     file_name = 'bilstm_crf'
     for num_epochs in range(epoch):
+        step = 0
         for sentence, tags in zip(X_train, y_train):
+            print(step)
+            step = step + 1
             # Step 3. Run our forward pass.
             sentence = torch.tensor(sentence).long().to(device)
             # torch.unsqueeze(sentence, 0)
