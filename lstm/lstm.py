@@ -113,8 +113,8 @@ def lstm_train(word2id,
     X_val, X_test, y_val, y_test = train_test_split(X_test, y_test, test_size=0.5, random_state=1)
 
     # initialize visdom
-    viz = visdom.Visdom()
-    win = viz.scatter(X=np.asarray([[0, 0]]))
+    # viz = visdom.Visdom()
+    # win = viz.scatter(X=np.asarray([[0, 0]]))
     epoch = 1000
     best_loss = 1e-1
     model_prefix = model_prefix
@@ -142,15 +142,15 @@ def lstm_train(word2id,
             accuracy, precision, recall, f1 = val(model, word_embeds, device, X_val, y_val)
 
             # draw loss line
-            viz.scatter(X=np.array([[num_epochs, loss.tolist()]]),
-                        name='train',
-                        win=win,
-                        update='append')
-
-            viz.scatter(X=np.array([[num_epochs, f1]]),
-                        name='validate',
-                        win=win,
-                        update='append')
+            # viz.scatter(X=np.array([[num_epochs, loss.tolist()]]),
+            #             name='train',
+            #             win=win,
+            #             update='append')
+            #
+            # viz.scatter(X=np.array([[num_epochs, f1]]),
+            #             name='validate',
+            #             win=win,
+            #             update='append')
 
             print('Epoch[{}/{}]'.format(num_epochs, epoch) + 'loss: {:.6f}'.format(
                 loss.item()) +

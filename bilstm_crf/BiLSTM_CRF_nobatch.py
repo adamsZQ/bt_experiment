@@ -261,8 +261,8 @@ def bilstm_train(word2id,
     X_train, X_test, y_train, y_test = train_test_split(X_train, y_train, test_size=0.2, random_state=0, shuffle=True)
     X_val, X_test, y_val, y_test = train_test_split(X_test, y_test, test_size=0.5, random_state=1)
 
-    viz = visdom.Visdom()
-    win = viz.scatter(X=np.asarray([[0,0]]))
+    # viz = visdom.Visdom()
+    # win = viz.scatter(X=np.asarray([[0,0]]))
 
     epoch = 1000
     best_loss = 1e-1
