@@ -1,7 +1,9 @@
 import argparse
-
-parser = argparse.ArgumentParser()
-parser.add_argument("--prefix")
-args = parser.parse_args()
-print(args.prefix)
-print(type(args.prefix))
+import sys
+from time import sleep
+import logging
+i = 0
+while True:
+    print(i)
+    sys.stdout.flush()
+    i = i + 1

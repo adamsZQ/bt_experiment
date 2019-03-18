@@ -158,6 +158,7 @@ def lstm_train(word2id,
                   'precision_score: {:.6f}'.format(precision) +
                   'recall_score: {:.6f}'.format(recall) +
                   'f1_score: {:.6f}'.format(f1))
+            sys.stdout.flush()
 
             best_loss = save_model(model, model_prefix, file_name, 1 - f1, best_loss)
 
