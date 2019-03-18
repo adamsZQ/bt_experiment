@@ -18,5 +18,5 @@ def get_training_data(file_prefix):
 if __name__ == '__main__':
     predix = '/path/bt'
     data, tags = get_training_data(predix)
-    print(data)
-    print(tags)
+    print(len(data))
+    print(len(tags))

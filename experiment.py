@@ -60,11 +60,11 @@ if __name__ == '__main__':
 
     # # TODO test
     if FILE_PREFIX is None:
-        FILE_PREFIX = '/path/bt'
+        FILE_PREFIX = '/path/bt/'
     if model_type is None:
-        model_type = 'bilstm'
+        model_type = 'lstm'
     if boundary_tags is None:
-        boundary_tags = False
+        boundary_tags = True
 
     # get word embeddings
     glove_embeddings = Glove_Embeddings(FILE_PREFIX)

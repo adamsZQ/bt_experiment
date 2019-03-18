@@ -107,7 +107,9 @@ def lstm_train(word2id,
     criterion = nn.CrossEntropyLoss()
     word_embeds = word_embeds.to(device)
 
-    X_train, X_test, y_train, y_test = train_test_split(sentences_prepared, tag_prepared, test_size=0.1, random_state=0, shuffle=True)
+    X_train, X_test, y_train, y_test = train_test_split(sentences_prepared, tag_prepared, test_size=0.9, random_state=2,
+                                                        shuffle=True)
+    X_train, X_test, y_train, y_test = train_test_split(X_train, y_train, test_size=0.2, random_state=0, shuffle=True)
     X_val, X_test, y_val, y_test = train_test_split(X_test, y_test, test_size=0.5, random_state=1)
 
     # initialize visdom
